@@ -32,7 +32,7 @@
 
 // Maximum amount of objects to track.
 // The index position matches the 'class_id', this allows for O(1) access due to basic hashing
-#define MAX_OJBECT_TRACKING                   10  
+#define MAX_OBJECT_TRACKING                   10  
 #define MAX_LINKED_LIST_LEN                   50
 
 /*
@@ -111,12 +111,6 @@ typedef union
     OBJECT_HkTlm_Counter_t      CounterTlm;
 } OBJECT_CounterBuffer_t;
 
-// DEBUG - 3
-/*************************************************************************/
-/*
-** Type definition (TALKER App counter)
-*/
-
 
 
 // Contains the essential data for COSMOS
@@ -179,14 +173,14 @@ typedef struct
 typedef struct
 {
     CFE_SB_Msg_t                MsgHdr;
-    OBJECT_switch_t             payload;
+    OBJECT_Switch_t             payload;
 } OBJECT_Switch_App_Header_t;
 
 // Switch message ground-to-app header
 typedef struct
 {
     uint8                       CmdHeader[CFE_SB_CMD_HDR_SIZE];
-    OBJECT_switch_t             payload;
+    OBJECT_Switch_t             payload;
 } OBJECT_Switch_GCS_Header_t;
 
 
@@ -224,7 +218,7 @@ typedef struct
 typedef union
 {
     // Array used for tracking YOLO object detections 
-    Object_Master_Node_t object_list[MAX_OJBECT_TRACKING];
+    Object_Master_Node_t object_list[MAX_OBJECT_TRACKING];
 
 } Object_Master_List_t;
 
@@ -238,8 +232,8 @@ typedef struct
     bool enable_switch;
 
     // The starting and latest observations - this allows for trversal of object history
-    object_node_t start_node;
-    object_node_t latest_node;
+    Object_Node_t *start_node;
+    Object_Node_t *latest_node;
 
     // Total length of the linked-list
     // Used for easier iterating and maxed linked list checking
@@ -247,22 +241,19 @@ typedef struct
 
 } Object_Master_Node_t;
 
-
-
-
 // Object-node - holds the rover data and neighbor nodes
 // TO-DO: Will make into MACRO later so it can hold multiple types of data and cJSON structs.
 typedef struct 
 {
     // The raw saved data from cJSON ROS2-YOLO file 
-    rover_state object_state;
+    rover_state     object_state;
     
     // The neighboring object state nodes
-    Object_Node_t previous_node;
-    Object_Node_t next_node;
+    Object_Node_t   *previous_node;
+    Object_Node_t   *next_node;
 
     // Tracks if it has been published on the software bus yet
-    bool          beenPublished;
+    bool            beenPublished;
     
 } Object_Node_t;
 

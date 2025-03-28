@@ -48,12 +48,11 @@
 
 
 /***********************************************************************/
-// DEBUG - 3
 #define OBJECT_PIPE_DEPTH                     128 /* Depth of the Command Pipe for Application */
 
 // The fileIO system location for ROS2-JSON msgs
 #define ROS2_FILE_LOC                         "/root/img_data/" 
-#define BACKUP_HISTORY                        false;
+#define BACKUP_HISTORY                        false
 
 /************************************************************************
 ** Type Definitions
@@ -137,5 +136,8 @@ void OBJECT_Save_States();
 void OBJECT_Switch_Request( const OBJECT_Switch_t *Msg );
 void OBJECT_Publish_States();
 void OBJECT_Publish_Complete_States();
+int32 amortizedInsert(rover_array *rovers);
+void insertLL(Object_Node_t objectNode, rover_state insertNode);
+void appendLL(Object_Master_Node_t *headObject, rover_state newNode);
 
 #endif /* _object_tracker_h_ */

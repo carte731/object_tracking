@@ -456,18 +456,234 @@ void OBJECT_Process(const OBJECT_Process_t *Msg){
 /* * * * * * * * * * * * * * * * * * * * * * * *  * * * * * * *  * *  * * * * */
 // TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
 void OBJECT_Save_States(){
+    // TO-DO: Turn this into a GENERIC AND MARCO TO GENERALIZE ARRAY TYPE
+    // Creates a rover array to hold entries from the YOLO-ROS JSON file
     rover_array rovers;
+
+    // Loads object array with data from JSON file 
     sync_fusion_injest(&rovers, ROS2_FILE_LOC);
 
     // Checks if it's too large and cleans out the Linked list first with clean-up function.
-    // Will save the data to softbus bus if flag (BACKUP_HISTORY) is true.
+    // Will save the data to software bus if flag (BACKUP_HISTORY) is true.
+    if(BACKUP_HISTORY){
+        // TO-DO: If object linked-list is too long,
+        // function loops over entries and checks length.
+        // publishes buffer space to software bus, which clears out
+        // the space before adding new the new entry. 
+        OBJECT_Publish_Complete_State_GEN();
+    }
 
     // Saves 'rover_array' elemets to local CMD structs
-
     // Inserts the elements in order based on time stamps (sec and nano sec)
+    amortizedInsert(rover_array *rovers);
 
 } /* End of OBJECT_Save_States */
 
+// TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
+// TO-DO: BREAK APART INTO MULTIPLE SUB-FUNCTIONS - TOO LONG
+
+// Since most new entries (theoretically) should be latest and will
+// be added to the end of the linked-list (O(1)). Some entries may have
+// been delayed, meaning it will require a linear search and insertion (O(n)).
+// Making this an amortized linked list insert.
+int32 amortizedInsert(rover_array *rovers){
+    rover_state travelerNode;
+    Object_Master_Node_t *headNode;
+
+    // Array timestamps for the YOLO capture
+    uint32 time_sec = rovers->timeStamp_sec;
+    uint32 time_nanoSec = rovers->timeStamp_nanoSec;
+
+    // Used for tracking each elements time for sorting
+    uint32 local_time_sec;
+    uint32 local_time_nanoSec;
+
+    //// Front Loading Loop - If master node is empty - add first element to linked list of objects
+    //// Collects elements for Appending list.
+
+    // Array length for the YOLO-ROS JSON
+    int arrayLen = rovers->arrayLen;
+
+    // Creating an array for inserting in the linked list
+    rover_array objectAppendStack[rovers->arrayLen];
+
+    // Used for tracking future insertions
+    int stackAppendSize = 0;
+
+    int itr;
+    for(itr = 0; itr < arrayLen; itr++){
+        // Setting comparison node
+        travelerNode = rovers->rovers_array[itr];
+
+        // Grabbing the class-id, this dictates the array index position
+        uint8 indx = travelerNode.class_id;
+
+        // Mounting the head node in the linked list
+        headNode = OBJECT_TrackerData.object_track_listing.object_list[indx];
+
+        // If the master node doesn't exist - create it and add the first element
+        if(headNode == NULL){
+            Object_Master_Node_t new_master_node;
+            new_master_node.class_id = indx;
+            headNode = &new_master_node;
+        }
+    
+        // If there is no starter node - add it
+        if(headNode->start_node == NULL){
+            headNode->start_node = travelerNode;
+            headNode->latest_node = travelerNode;
+            headNode->total_node_len++;
+        } else {
+            // Add it to the append stack to append in next phase
+            objectAppendStack[stackAppendSize++] = travelerNode;
+        }
+    }
+
+
+    //// Appending loop - will check and add the elements to the end of the linked list
+    //// Also collects insert elements for insertion loop
+
+    // Array length for the YOLO-ROS JSON
+    //arrayLen = rovers->arrayLen;
+
+    // Creating an array for inserting in the linked list
+    rover_array objectInsertStack[stackAppendSize];
+
+    // Used for tracking future insertions
+    int stackinsertSize = 0;
+    
+    for(itr = 0; itr < stackAppendSize; itr++){
+        // Setting comparison node
+        //travelerNode = rovers->rovers_array[itr];
+        travelerNode = objectAppendStack[itr];
+
+        // Grabbing the class-id, this dictates the array index position
+        uint8 indx = travelerNode.class_id;
+
+        // Mounting the head node in the linked list
+        headNode = OBJECT_TrackerData.object_track_listing.object_list[indx];
+
+        // Checking if the latest timestamp is less than the new input
+        if(headNode->enable_switch){
+
+            // Pulling the local time from the latest node
+            local_time_sec = headNode->latest_node->latest_node.object_state.timeStamp_sec;
+            local_time_nanoSec = headNode->latest_node->latest_node.object_state.timeStamp_nanoSec;
+
+            if((local_time_sec >= time_sec) && (local_time_nanoSec >= time_nanoSec)){
+                // Add to the end of the linked list
+                appendList(headNode, travelerNode);
+            } else {
+                // Add to the stack to loop over later
+                objectInsertArr[stackinsertSize++] = travelerNode;
+            }
+        }
+    }
+
+
+    //// Insertion Loop - will insert element in the proper position, won't publish until entire list is sent to software bus 
+    //// Nothing to insert, exit from function
+    if(stackinsertSize <= 0){
+        return(2);
+    }
+
+    // Brute Force method for inserting in linear O(n * m) == O(n) time
+    // A way of de-nesting the loop needed for linked list insertion
+
+    // Setting comparison node
+    rover_state insertTraveler = objectInsertArr[itr];
+
+    // Grabbing the class-id, this dictates the array index position
+    uint8 indx = travelerNode.class_id;
+
+    // Mounting the staring node
+    Object_Node_t *travelerObjectNode = OBJECT_TrackerData.object_track_listing.object_list[indx]->start_node;
+
+
+    itr = 0;
+    int outer_itr = 0;
+    while(itr < stackinsertSize){
+        // Pulling the local time from the latest node
+        local_time_sec = travelerObjectNode.object_state.timeStamp_sec;
+        local_time_nanoSec = travelerObjectNode.object_state.timeStamp_nanoSec;
+
+        // This only activates when bounds are present, should never activate unless there's an error
+        if(travelerObjectNode == NULL){
+            appendList(headNode, insertTraveler);
+        }
+
+        if((local_time_sec >= time_sec) && (local_time_nanoSec >= time_nanoSec)){
+            // Add to the end of the linked list
+            insert(stackinsertSize, insertTraveler);
+
+            // Preincrement and load the next object node
+            insertTraveler = objectInsertArr[++itr];
+
+            // Grabbing the class-id, this dictates the array index position
+            indx = insertTraveler.class_id;
+        
+            // Mounting the next staring node
+            travelerObjectNode = OBJECT_TrackerData.object_track_listing.object_list[indx]->start_node;
+        } else {
+            // Increment the linked list to check the next node
+            travelerObjectNode = travelerObjectNode.next_node;
+        }
+        
+    }
+
+    // Done
+    return(1);
+
+}
+
+// TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
+void insertLL(Object_Node_t *objectNode, rover_state *objectData){
+    // Creating new object to insert
+    Object_Node_t newObject;
+
+    // Setting the object data
+    newObject.object_state = objectData;
+
+    // Changing what the next objects previous object link
+    objectNode->next_node->previous_node = &newObject;
+
+    // Setting the new inserted objects next and previous nodes
+    // The new nodes will always be place in front of the previous node
+    newObject.previous_node = objectNode;
+    newObject.next_node = objectNode->next_node;
+
+    // The new node is placed in front of the old node
+    // Changing association 
+    objectNode->next_node = &newObject;
+
+}
+
+// TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
+void appendLL(Object_Master_Node_t *headObject, rover_state *newNode){
+    // Initializing a traveler node for the linked list
+    Object_Node_t newObject;
+
+    // Copying the object over
+    // TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
+    newObject.object_state = newNode;
+
+    // Link the nodes
+    newObject.previous_node = headObject->latest_node;
+    newObject.next_node = NULL;
+
+    // Initialize the publish bool
+    newObject.beenPublished = false;
+
+    // Relinking the master node for the object
+    headObject->latest_node->next_node = &newObject;
+
+    // Relinking master node to new apended node
+    headObject->latest_node = &newObject;
+
+    // Increasing the total node len size
+    newObject->total_node_len++;
+
+}
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
 /*  Name:  OBJECT_Switch_Request                                              */
@@ -500,7 +716,8 @@ void  OBJECT_Switch_Request(const OBJECT_Switch_t *Msg){
 void OBJECT_Publish_States(){
 
     // Publish Essentials message to software bus if enabled
-
+    CFE_SB_TimeStampMsg(&OBJECT_TrackerData.HkBuf.MsgHdr);
+    CFE_SB_SendMsg(&OBJECT_TrackerData.HkBuf.MsgHdr);
 
 } /* End of OBJECT_Publish_States */
 
@@ -511,6 +728,7 @@ void OBJECT_Publish_States(){
 /*         Publishes object complete history to software-bus                  */
 /*                                                                            */
 /* * * * * * * * * * * * * * * * * * * * * * * *  * * * * * * *  * *  * * * * */
+// TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
 void OBJECT_Publish_Complete_State(const OBJECT_Switch_t *Msg){
     
     // Publish Complete history message using 'zero_copy' by using CFE_SB_TransmitBuffer(SAMPLE_AppData.BigPktBuf, BufferHandle, true);
@@ -518,3 +736,10 @@ void OBJECT_Publish_Complete_State(const OBJECT_Switch_t *Msg){
     // Only publish enabled elements in master array
 
 } /* End of OBJECT_Publish_States */
+
+// TO-DO: If object linked-list is too long,
+// function loops over entries and checks length.
+// publishes buffer space to software bus, which clears out
+// the space before adding new the new entry. 
+void OBJECT_Publish_Complete_State_GEN(){
+}
