@@ -84,6 +84,11 @@ typedef struct
     */
     OBJECT_HkBuffer_t     HkBuf;
 
+    // TO-DO: Replace with a function that scans directory contents and processes all of them
+    //        into linked-list. Or just take the most recent input.
+    // File counter
+    int fileItr;
+
     // Used for tracking objects based on 'class_id' and corresponding index position
     Object_Master_List_t  object_track_listing;
 

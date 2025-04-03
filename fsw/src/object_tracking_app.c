@@ -108,6 +108,9 @@ int32 OBJECT_TrackerInit( void )
     OBJECT_TrackerData.CmdCounter = 0;
     OBJECT_TrackerData.ErrCounter = 0;
 
+    // File counter
+    OBJECT_TrackerData.fileItr = 0;
+
     /*
     ** Initialize app configuration data
     */
@@ -460,8 +463,14 @@ void OBJECT_Save_States(){
     // Creates a rover array to hold entries from the YOLO-ROS JSON file
     rover_array rovers;
 
+    // TO-DO: Replace with a function that scans directory contents and processes all of them
+    //        into linked-list. Or just take the most recent input.
+    // Updates the file path with the file number 
+    char fileLoc[100];
+    sprintf(fileLoc, "%sOutput_%d", ROS2_FILE_LOC, OBJECT_TrackerData.fileItr++);
+
     // Loads object array with data from JSON file 
-    sync_fusion_injest(&rovers, ROS2_FILE_LOC);
+    sync_fusion_injest(&rovers, fileLoc);
 
     // Checks if it's too large and cleans out the Linked list first with clean-up function.
     // Will save the data to software bus if flag (BACKUP_HISTORY) is true.
@@ -729,6 +738,7 @@ void OBJECT_Publish_States(){
 /*                                                                            */
 /* * * * * * * * * * * * * * * * * * * * * * * *  * * * * * * *  * *  * * * * */
 // TO-DO: USE C BASED GENERICS AND MACROS TO SUPPORT MULTIPLE DATA/STRUCT TYPES
+// TO-DO: Will implement in the future
 void OBJECT_Publish_Complete_State(const OBJECT_Switch_t *Msg){
     
     // Publish Complete history message using 'zero_copy' by using CFE_SB_TransmitBuffer(SAMPLE_AppData.BigPktBuf, BufferHandle, true);
@@ -740,6 +750,7 @@ void OBJECT_Publish_Complete_State(const OBJECT_Switch_t *Msg){
 // TO-DO: If object linked-list is too long,
 // function loops over entries and checks length.
 // publishes buffer space to software bus, which clears out
-// the space before adding new the new entry. 
+// the space before adding new the new entry.
+// TO-DO: Will implement in the future 
 void OBJECT_Publish_Complete_State_GEN(){
 }
